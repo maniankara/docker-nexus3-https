@@ -8,11 +8,15 @@ ENV NEXUS_HOME=/opt/sonatype/nexus \
   NEXUS_IP_ADDRESS=173.168.1.1 \
   SONATYPE_WORK=/sonatype-work
 
+# Create nexus user
+RUN useradd -r -u 200 -m -c "nexus role account" -d ${SONATYPE_WORK}  nexus
+
 # Download and install nexus
 ADD http://download.sonatype.com/nexus/3/nexus-$NEXUS_VERSION-unix.tar.gz /opt/nexus.tar.gz 
 RUN mkdir -p /opt/sonatype && \
   tar zxf /opt/nexus.tar.gz -C /tmp/ && \
-  mv /tmp/nexus-$NEXUS_VERSION $NEXUS_HOME
+  mv /tmp/nexus-$NEXUS_VERSION $NEXUS_HOME && \
+  chown -R nexus:nexus $NEXUS_HOME
 
 
 # Generate the keystore
@@ -34,10 +38,17 @@ RUN ${JAVA_HOME}/bin/keytool -genkeypair -keystore /tmp/server-keystore.jks -sto
   sed -i 's%^nexus-args.*$%nexus-args=\${karaf.etc}/jetty.xml,\${karaf.etc}\/jetty-http.xml,\${karaf.etc}\/jetty-requestlog.xml,\${karaf.etc}\/jetty-https.xml,\${karaf.etc}\/jetty-http-redirect-to-https.xml%' $NEXUS_HOME/etc/org.sonatype.nexus.cfg
 
  
- 
-RUN useradd -r -u 200 -m -c "nexus role account" -d ${SONATYPE_WORK}  nexus
+# Switch to nexus user 
 USER nexus
+
+# nexus workdir
 WORKDIR $NEXUS_HOME
+
+# data volume for external mounts
 VOLUME ["$NEXUS_HOME/data"]
+
+# http and https ports
 EXPOSE 8081 8443
-CMD ["$NEXUS_HOME/bin/nexus", "start"]
+
+# launch
+CMD ["/opt/sonatype/nexus/bin/nexus", "run-redirect"]
